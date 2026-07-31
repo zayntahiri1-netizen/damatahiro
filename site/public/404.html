@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>404 — Dama Tahiro</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e5a4a'/%3E%3Cg fill='none' stroke='%23c9a227' stroke-width='4'%3E%3Crect x='20' y='20' width='24' height='24'/%3E%3Crect x='20' y='20' width='24' height='24' transform='rotate(45 32 32)'/%3E%3C/g%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body style="display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center">
+<div class="wrap">
+  <h1 style="color:var(--emerald);font-size:3.4rem;margin:0 0 6px">404</h1>
+  <div class="l l-ar"><p style="font-size:1.05rem">الصفحة غير موجودة.</p><p><a class="btn" href="/">العودة إلى الرئيسية</a></p></div><div class="l l-en"><p style="font-size:1.05rem">Page not found.</p><p><a class="btn" href="/">Back to home</a></p></div><div class="l l-es"><p style="font-size:1.05rem">Página no encontrada.</p><p><a class="btn" href="/">Volver al inicio</a></p></div><div class="l l-zh"><p style="font-size:1.05rem">页面不存在。</p><p><a class="btn" href="/">返回主页</a></p></div>
+  <div class="lang-switch" style="justify-content:center;margin-top:22px"><button class="lang-btn" type="button" data-lang="ar">العربية</button><button class="lang-btn" type="button" data-lang="en">English</button><button class="lang-btn" type="button" data-lang="es">Español</button><button class="lang-btn" type="button" data-lang="zh">中文</button></div>
+</div>
+<script>
+(function(){
+  var KEY='tahiroLang', CODES=['ar','en','es','zh'];
+  var saved=null; try{ saved=localStorage.getItem(KEY); }catch(e){}
+  var nav=((navigator.languages&&navigator.languages[0])||navigator.language||'').toLowerCase();
+  var auto='en';
+  if(nav.indexOf('ar')===0) auto='ar';
+  else if(nav.indexOf('es')===0) auto='es';
+  else if(nav.indexOf('zh')===0) auto='zh';
+  else {
+    var r=(/[-_]([a-z]{2})\b/.exec(nav)||[])[1];
+    if(r){ r=r.toUpperCase();
+      if('MA DZ TN LY EG SD SA AE QA BH KW OM YE JO LB SY IQ PS MR'.indexOf(r)>=0) auto='ar';
+      else if('ES MX AR CO CL PE VE EC GT CU BO DO HN PY SV NI CR PA UY PR'.indexOf(r)>=0) auto='es';
+      else if('CN TW HK MO SG'.indexOf(r)>=0) auto='zh';
+    }
+  }
+  apply(CODES.indexOf(saved)>=0 ? saved : auto, false);
+  var btns=document.querySelectorAll('[data-lang]');
+  for(var i=0;i<btns.length;i++){
+    btns[i].addEventListener('click', function(){ apply(this.getAttribute('data-lang'), true); });
+  }
+  function apply(l, save){
+    document.documentElement.lang=l;
+    document.documentElement.dir=(l==='ar')?'rtl':'ltr';
+    var b=document.querySelectorAll('[data-lang]');
+    for(var i=0;i<b.length;i++){
+      b[i].classList.toggle('active', b[i].getAttribute('data-lang')===l);
+    }
+    if(save){ try{ localStorage.setItem(KEY,l); }catch(e){} }
+  }
+})();
+</script>
+</body>
+</html>
