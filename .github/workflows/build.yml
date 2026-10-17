@@ -1,0 +1,182 @@
+name: Build Dama Tahiro
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  # ──────────────── نسخة الويب (اللعبة في ملف HTML واحد) ────────────────
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      # ── بوّابات الفحص ──
+      # vite build يحذف الأنواع بلا فحص، فخطأ نوعي يمرّ إلى الإصدار بهدوء
+      # ويتفجّر عند المستخدم. tsc هو ما يمنع ذلك، ولهذا يسبق البناء.
+      - name: Typecheck
+        run: npx tsc --noEmit
+      # المفتاح في نظام الترجمة هو النص العربي نفسه، فالنص غير المترجَم
+      # لا يُسبّب خطأً — يُعرض بالعربية في واجهة إنجليزية. هذا يمنعه.
+      - name: Check translations
+        run: python3 scripts/check-i18n.py
+      # كل لغز يومي يُعاد برهانه بمُبرهِن مستقل عند كل بناء: لغز بلا حل
+      # أسوأ من لا لغز.
+      - name: Verify daily puzzles
+        run: node scripts/verify-puzzles.mjs
+      # اختبارات المنطق: المسجّل، قواعد التعادل، مُبرهِن الألغاز.
+      # تعمل بلا حزم — تستورد src/engine.ts نفسه الذي تشتغل به اللعبة.
+      - name: Logic tests
+        run: node scripts/test-logic.mjs
+
+      - name: Build
+        run: npm run build
+      # الحزمة يجب أن تبقى ملفاً واحداً وأن يكون خيط المحرّك مُدمجاً فيه:
+      # بناءٌ «ناجح» يُخرج الخيط ملفاً منفصلاً يُنتج تطبيقاً يعمل ويتجمّد،
+      # وهو عيب لا يظهر إلا من شكوى مستخدم.
+      - name: Verify bundle
+        run: python3 scripts/check-bundle.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dama-web
+          path: dist/index.html
+          if-no-files-found: error
+
+  # ──────────────── تطبيق أندرويد: APK للتجربة + APK/AAB موقّعان ────────────────
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    # لا يُبنى APK/AAB إلا بعد عبور بوّابات الفحص في وظيفة Web:
+    # لولا هذا لرُفع تطبيق معطوب إلى Play بينما الفحص أحمر.
+    needs: web
+    # متاحة لكل خطوات gradle — كتلة signingConfigs تُقيَّم في بناء debug أيضاً
+    env:
+      KEYSTORE_PATH:     ${{ github.workspace }}/release.jks
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS:         ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD:      ${{ secrets.KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: Build web assets (test ads for the debug APK)
+        env:
+          VITE_TEST_ADS: '1'
+        run: npm run build
+
+      - name: Ensure Android SDK 36 (Android 16)
+        run: |
+          SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKMGR" ]; then
+            yes | "$SDKMGR" --licenses >/dev/null 2>&1 || true
+            "$SDKMGR" "platforms;android-36" "build-tools;36.0.0" || true
+          fi
+          ls "$ANDROID_HOME/platforms" || true
+
+      - name: Prepare Android project
+        run: |
+          if [ -d android ]; then npx cap sync android; else npx cap add android; fi
+
+      - name: Decode keystore
+        id: ks
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+            echo "sign=true" >> "$GITHUB_OUTPUT"
+            echo "✅ مفتاح التوقيع جاهز"
+          else
+            echo "sign=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::لا توجد أسرار توقيع — سيُبنى APK للتجربة فقط. أضف KEYSTORE_BASE64 و KEYSTORE_PASSWORD و KEY_ALIAS و KEY_PASSWORD في Settings → Secrets and variables → Actions."
+          fi
+
+      - name: Configure version & signing
+        run: |
+          if [ "${{ steps.ks.outputs.sign }}" = "true" ]; then
+            python3 scripts/prepare-android.py --version-code ${{ github.run_number }} --sign
+          else
+            python3 scripts/prepare-android.py --version-code ${{ github.run_number }}
+          fi
+
+      # يمنع نافذة "Something went wrong / missing splits" عند تثبيت ناقص
+      - name: Disable bundle splits
+        run: |
+          python3 scripts/inject-bundle-config.py
+          python3 scripts/inject-bundle-config.py --verify-only
+
+      - name: Verify SDK levels
+        run: |
+          grep -E "minSdkVersion|compileSdkVersion|targetSdkVersion" android/variables.gradle
+          grep -q "targetSdkVersion = 36" android/variables.gradle || { echo "::error::targetSdk ليس 36"; exit 1; }
+          # minSdk ≥ 24 شرط «الحماية التلقائية» في Google Play. افتراضي
+          # Capacitor هو 23، فتُرفض الحزمة عند الرفع لا عند البناء — أي
+          # بعد عشر دقائق من البناء وتنزيل الملف. هذا الفحص يكشفه فوراً.
+          MIN=$(grep -oE "minSdkVersion\s*=\s*[0-9]+" android/variables.gradle | grep -oE "[0-9]+")
+          [ "${MIN:-0}" -ge 24 ] || { echo "::error::minSdk=$MIN — Google Play يطلب 24 على الأقل"; exit 1; }
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      # يفشل البناء إن حمل الـAPK أيقونة افتراضية بدل أيقونة اللعبة
+      - name: Verify app icon inside the APK
+        run: |
+          python3 -m pip install --quiet --break-system-packages pillow || pip3 install --quiet pillow
+          python3 scripts/verify-apk-icon.py android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dama-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      # نسخة الإصدار تُبنى من جديد بإعلانات حقيقية (بلا isTesting)
+      - name: Rebuild web assets with live ads
+        if: steps.ks.outputs.sign == 'true'
+        run: |
+          npm run build
+          npx cap sync android
+
+      - name: Build signed release APK + AAB
+        if: steps.ks.outputs.sign == 'true'
+        run: |
+          cd android
+          ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dama-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: ignore
+
+      - name: Upload release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: dama-release-aab
+          path: android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: ignore

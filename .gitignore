@@ -1,0 +1,20 @@
+# التبعيات والمخرجات
+node_modules/
+/dist/
+
+# مشروع أندرويد المولَّد في البناء — الشرطة المائلة الأولى مهمة:
+# بدونها يتطابق النمط مع أي مجلد اسمه android في أي مستوى،
+# فيبتلع resources/android/ الذي يحوي أيقونات التطبيق.
+/android/
+
+# أسرار التوقيع — لا تُرفع أبداً
+*.jks
+*.keystore
+key.properties
+keystore.properties
+google-services.json
+.env
+.env.*
+
+*.log
+/site/.firebase/
