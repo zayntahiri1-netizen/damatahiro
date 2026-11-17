@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root {
+  --manly-black: #020617;
+  --manly-gold: #b45309;
+  --manly-steel: #1e293b;
+  --gold-gradient: linear-gradient(135deg, #78350f 0%, #d97706 50%, #78350f 100%);
+}
+
+* { 
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  background: var(--manly-black);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Cairo', 'Noto Sans SC', sans-serif;
+  color: #e2e8f0;
+}
+
+/* Carbon Fiber Texture */
+.carbon-bg {
+  background-color: #020617;
+  background-image: linear-gradient(45deg, #0a0f1e 25%, transparent 25%, transparent 75%, #0a0f1e 75%, #0a0f1e), 
+                    linear-gradient(45deg, #0a0f1e 25%, transparent 25%, transparent 75%, #0a0f1e 75%, #0a0f1e);
+  background-size: 4px 4px;
+  background-position: 0 0, 2px 2px;
+}
+
+/* Manly Glassmorphism */
+.manly-panel {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(180, 83, 9, 0.2);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+}
+
+.gold-border {
+  border-image: var(--gold-gradient) 1;
+  border-width: 1px;
+}
+
+/* Animations */
+@keyframes intense-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(180, 83, 9, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(180, 83, 9, 0.4); }
+}
+
+.animate-manly-glow { animation: intense-glow 4s ease-in-out infinite; }
+
+.btn-manly {
+  background: linear-gradient(to bottom, #1e293b, #0f172a);
+  border: 1px solid #334155;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-manly:hover {
+  border-color: #b45309;
+  background: linear-gradient(to bottom, #334155, #1e293b);
+}
+
+.gold-text {
+  background: var(--gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 900;
+}
